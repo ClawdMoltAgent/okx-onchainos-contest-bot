@@ -11,7 +11,7 @@ from web3 import Web3
 from .config import Config, load_state_path
 from .okx_client import OkxDexClient, OkxApiError
 from .risk import RiskManager, RiskState
-from .strategy import MovingAverageStrategy
+from .selector import TokenSelector
 
 
 USDC_DECIMALS = 6
@@ -36,11 +36,12 @@ class TradingEngine:
         self.cfg = cfg
         self.dry_run = dry_run
         self.client = OkxDexClient(cfg)
-        self.strategy = MovingAverageStrategy(
+        self.selector = TokenSelector(
+            client=self.client,
+            candidates=cfg.token_candidates or [],
             fast_window=cfg.fast_window,
             slow_window=cfg.slow_window,
-            buy_threshold_bps=cfg.buy_threshold_bps,
-            sell_threshold_bps=cfg.sell_threshold_bps,
+            min_edge_bps=cfg.selector_min_edge_bps,
         )
         self.risk_mgr = RiskManager(cfg.risk_max_daily_loss_usd, cfg.risk_max_position_usd)
         self.risk_state = RiskState()
@@ -96,7 +97,7 @@ class TradingEngine:
         if int(receipt.status) != 1:
             raise RuntimeError(f"tx reverted: {tx_hash}")
 
-    def _buy(self, price: float) -> str:
+    def _buy(self, price: float, token_symbol: str, token_address: str) -> str:
         ok, reason = self.risk_mgr.can_open(self.risk_state, self.cfg.per_trade_usd)
         if not ok:
             return f"SKIP BUY ({reason})"
@@ -104,7 +105,7 @@ class TradingEngine:
         amount_wei = _to_wei(self.cfg.per_trade_usd, USDC_DECIMALS)
         quote = self.client.get_swap_quote(
             from_token_address=self.cfg.quote_token_address,
-            to_token_address=self.cfg.trade_token_address,
+            to_token_address=token_address,
             amount_wei=amount_wei,
             slippage_bps=self.cfg.slippage_bps,
         )
@@ -118,7 +119,7 @@ class TradingEngine:
             self._wait_success(approve_tx_hash)
             swap_tx = self.client.build_swap_transaction(
                 from_token_address=self.cfg.quote_token_address,
-                to_token_address=self.cfg.trade_token_address,
+                to_token_address=token_address,
                 amount_wei=amount_wei,
                 slippage_bps=self.cfg.slippage_bps,
             )
@@ -133,6 +134,8 @@ class TradingEngine:
                 "ts": datetime.now().isoformat(timespec="seconds"),
                 "event": "BUY",
                 "mode": "DRY" if self.dry_run else "LIVE",
+                "token": token_symbol,
+                "token_address": token_address,
                 "price": price,
                 "usd": self.cfg.per_trade_usd,
                 "to_amount": quote.to_token_amount,
@@ -141,10 +144,10 @@ class TradingEngine:
             }
         )
         if self.dry_run:
-            return f"DRY BUY usd={self.cfg.per_trade_usd:.2f} quote_to={quote.to_token_amount}"
-        return f"LIVE BUY approve={approve_tx_hash} swap={tx_hash}"
+            return f"DRY BUY {token_symbol} usd={self.cfg.per_trade_usd:.2f} quote_to={quote.to_token_amount}"
+        return f"LIVE BUY {token_symbol} approve={approve_tx_hash} swap={tx_hash}"
 
-    def _sell(self, price: float) -> str:
+    def _sell(self, price: float, token_symbol: str, token_address: str) -> str:
         ok, reason = self.risk_mgr.can_close(self.risk_state)
         if not ok:
             return f"SKIP SELL ({reason})"
@@ -153,7 +156,7 @@ class TradingEngine:
         amount_wei = _to_wei(close_usd, USDC_DECIMALS)
 
         quote = self.client.get_swap_quote(
-            from_token_address=self.cfg.trade_token_address,
+            from_token_address=token_address,
             to_token_address=self.cfg.quote_token_address,
             amount_wei=amount_wei,
             slippage_bps=self.cfg.slippage_bps,
@@ -169,11 +172,11 @@ class TradingEngine:
         approve_tx_hash = ""
         if not self.dry_run:
             base_nonce = self.w3.eth.get_transaction_count(Web3.to_checksum_address(self.cfg.evm_address), "pending")
-            approve_tx = self.client.build_approve_transaction(token_contract_address=self.cfg.trade_token_address, approve_amount_wei=amount_wei)
+            approve_tx = self.client.build_approve_transaction(token_contract_address=token_address, approve_amount_wei=amount_wei)
             approve_tx_hash = self._submit_evm_tx(approve_tx, nonce=base_nonce)
             self._wait_success(approve_tx_hash)
             swap_tx = self.client.build_swap_transaction(
-                from_token_address=self.cfg.trade_token_address,
+                from_token_address=token_address,
                 to_token_address=self.cfg.quote_token_address,
                 amount_wei=amount_wei,
                 slippage_bps=self.cfg.slippage_bps,
@@ -186,6 +189,8 @@ class TradingEngine:
                 "ts": datetime.now().isoformat(timespec="seconds"),
                 "event": "SELL",
                 "mode": "DRY" if self.dry_run else "LIVE",
+                "token": token_symbol,
+                "token_address": token_address,
                 "price": price,
                 "usd": close_usd,
                 "to_amount": quote.to_token_amount,
@@ -195,36 +200,46 @@ class TradingEngine:
             }
         )
         if self.dry_run:
-            return f"DRY SELL usd={close_usd:.2f} quote_to={quote.to_token_amount} pnl={pnl:.2f}"
-        return f"LIVE SELL approve={approve_tx_hash} swap={tx_hash} pnl={pnl:.2f}"
+            return f"DRY SELL {token_symbol} usd={close_usd:.2f} quote_to={quote.to_token_amount} pnl={pnl:.2f}"
+        return f"LIVE SELL {token_symbol} approve={approve_tx_hash} swap={tx_hash} pnl={pnl:.2f}"
 
     def run(self) -> None:
         cycle = 0
         while True:
             cycle += 1
             try:
-                price = self.client.get_price(self.cfg.trade_token_address)
-                signal = self.strategy.on_price(price)
-
-                if signal.action == "BUY":
-                    result = self._buy(price)
-                elif signal.action == "SELL":
-                    result = self._sell(price)
+                selected = self.selector.select()
+                if selected is None:
+                    result = "HOLD(no-candidate)"
+                    price = 0.0
+                    edge_bps = 0.0
+                    token_symbol = "N/A"
                 else:
-                    result = "HOLD"
+                    price = selected.price
+                    edge_bps = selected.edge_bps
+                    token_symbol = selected.symbol
+                    self.cfg.trade_token_symbol = selected.symbol
+                    self.cfg.trade_token_address = selected.address
+
+                    if edge_bps >= self.cfg.buy_threshold_bps:
+                        result = self._buy(price, selected.symbol, selected.address)
+                    elif edge_bps <= -self.cfg.sell_threshold_bps:
+                        result = self._sell(price, selected.symbol, selected.address)
+                    else:
+                        result = f"HOLD({selected.symbol})"
 
                 runtime = RuntimeState(
                     ts=datetime.now().isoformat(timespec="seconds"),
                     price=price,
                     action=result,
-                    edge_bps=signal.edge_bps,
+                    edge_bps=edge_bps,
                     position_usd=self.risk_state.position_usd,
                     daily_realized_pnl_usd=self.risk_state.daily_realized_pnl_usd,
                 )
                 self._save_runtime(runtime)
 
                 print(
-                    f"[{runtime.ts}] price={runtime.price:.6f} edge={runtime.edge_bps:.1f}bps "
+                    f"[{runtime.ts}] token={token_symbol} price={runtime.price:.6f} edge={runtime.edge_bps:.1f}bps "
                     f"action={runtime.action} pos=${runtime.position_usd:.2f} "
                     f"dailyPnL=${runtime.daily_realized_pnl_usd:.2f}"
                 )

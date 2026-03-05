@@ -113,12 +113,13 @@ class OkxDexClient:
         items = data.get("data", [])
         if not items:
             raise OkxApiError(f"No quote data returned: {data}")
-        rr = items[0].get("routerResult", {})
+        item = items[0]
+        rr = item.get("routerResult", item)
         return QuoteResult(
             from_token_amount=str(rr.get("fromTokenAmount", amount_wei)),
             to_token_amount=str(rr.get("toTokenAmount", "0")),
-            price_impact_pct=float(rr.get("priceImpactPercentage", 0.0)),
-            raw=items[0],
+            price_impact_pct=float(rr.get("priceImpactPercent", rr.get("priceImpactPercentage", 0.0))),
+            raw=item,
         )
 
     def build_swap_transaction(self, from_token_address: str, to_token_address: str, amount_wei: str, slippage_bps: int) -> dict[str, Any]:
@@ -159,3 +160,7 @@ class OkxDexClient:
             "gasPrice": x.get("gasPrice"),
             "value": "0",
         }
+
+    def list_all_tokens(self) -> list[dict[str, Any]]:
+        data = self._get("/api/v6/dex/aggregator/all-tokens", {"chainIndex": self.cfg.base_chain_index})
+        return data.get("data", [])

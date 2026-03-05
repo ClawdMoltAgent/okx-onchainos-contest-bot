@@ -6,6 +6,7 @@
 - 链：**Base(8453)**
 - 接口：OKX OnchainOS DEX market + quote + swap
 - 策略：短均线/长均线动量 + 阈值过滤
+- 自动选币：候选池实时评分并自动切换交易代币
 - 风控：单笔限额、总仓位限额、日亏损限额
 - 运行：循环轮询、状态落盘到 `data/runtime_state.json`
 
@@ -40,7 +41,12 @@ okx-contest-bot --dry-run
 okx-contest-bot --live
 ```
 
-### 3) 盈利验证报告
+### 3) 刷新 Base 自动代币池（OKX可交易数据）
+```bash
+okx-contest-bot --refresh-universe
+```
+
+### 4) 盈利验证报告
 ```bash
 okx-contest-bot --report
 ```

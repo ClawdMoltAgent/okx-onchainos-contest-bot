@@ -30,6 +30,10 @@ class Config:
     trade_token_address: str = "0x4200000000000000000000000000000000000006"
     per_trade_usd: float = 20.0
 
+    # Auto token selector
+    token_candidates: list[dict[str, str]] | None = None
+    selector_min_edge_bps: float = 1.0
+
     fast_window: int = 5
     slow_window: int = 12
     buy_threshold_bps: int = 10
@@ -47,6 +51,37 @@ def _env_float(name: str, default: float) -> float:
 def _env_int(name: str, default: int) -> int:
     v = os.getenv(name)
     return int(v) if v not in (None, "") else default
+
+
+def _parse_candidates(raw: str) -> list[dict[str, str]]:
+    # format: SYMBOL:0xaddr,SYMBOL2:0xaddr2
+    out: list[dict[str, str]] = []
+    for part in raw.split(","):
+        s = part.strip()
+        if not s or ":" not in s:
+            continue
+        sym, addr = s.split(":", 1)
+        out.append({"symbol": sym.strip().upper(), "address": addr.strip()})
+    return out
+
+
+def _load_base_universe(path: str, base_chain_index: str) -> list[dict[str, str]]:
+    p = Path(path)
+    if not p.exists():
+        return []
+    try:
+        arr = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    out: list[dict[str, str]] = []
+    for x in arr:
+        if str(x.get("chainIndex", "")) != str(base_chain_index):
+            continue
+        sym = str(x.get("symbol", "")).strip().upper()
+        addr = str(x.get("address", "")).strip()
+        if sym and addr:
+            out.append({"symbol": sym, "address": addr})
+    return out
 
 
 def _load_fallback_okx_secrets() -> dict[str, str]:
@@ -92,6 +127,13 @@ def load_config() -> Config:
         except Exception:
             evm_address = ""
 
+    raw_candidates = os.getenv(
+        "TOKEN_CANDIDATES",
+        "WETH:0x4200000000000000000000000000000000000006,cbBTC:0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf,AERO:0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+    )
+    universe_path = os.getenv("TOKEN_UNIVERSE_PATH", "./data/base_token_universe.json")
+    candidates = _load_base_universe(universe_path, os.getenv("BASE_CHAIN_INDEX", "8453")) or _parse_candidates(raw_candidates)
+
     cfg = Config(
         okx_api_key=okx_api_key,
         okx_secret_key=okx_secret_key,
@@ -110,6 +152,8 @@ def load_config() -> Config:
         trade_token_symbol=os.getenv("TRADE_TOKEN_SYMBOL", "WETH"),
         trade_token_address=os.getenv("TRADE_TOKEN_ADDRESS", "0x4200000000000000000000000000000000000006"),
         per_trade_usd=_env_float("PER_TRADE_USD", 20.0),
+        token_candidates=candidates,
+        selector_min_edge_bps=_env_float("SELECTOR_MIN_EDGE_BPS", 1.0),
         fast_window=_env_int("FAST_WINDOW", 5),
         slow_window=_env_int("SLOW_WINDOW", 12),
         buy_threshold_bps=_env_int("BUY_THRESHOLD_BPS", 10),

@@ -5,6 +5,7 @@ from pathlib import Path
 from .analytics import pretty_print_report, summarize_trades
 from .config import load_config
 from .engine import TradingEngine
+from .universe_refresh import refresh_base_universe
 
 
 
@@ -14,6 +15,7 @@ def main() -> None:
     parser.add_argument("--live", action="store_true", help="enable live transaction building")
     parser.add_argument("--report", action="store_true", help="print profitability report from trade logs")
     parser.add_argument("--report-json", default="", help="optional output json path, e.g. ./data/report.json")
+    parser.add_argument("--refresh-universe", action="store_true", help="refresh Base token universe via OKX tradable data")
     args = parser.parse_args()
 
     if args.report:
@@ -26,10 +28,16 @@ def main() -> None:
             print(f"saved report json -> {p}")
         return
 
+    cfg = load_config()
+
+    if args.refresh_universe:
+        res = refresh_base_universe(cfg)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return
+
     if args.dry_run and args.live:
         raise SystemExit("Use either --dry-run or --live, not both")
 
-    cfg = load_config()
     dry_run = True if not args.live else False
     if args.dry_run:
         dry_run = True

@@ -1,0 +1,102 @@
+[
+  {
+    "symbol": "BENJI",
+    "address": "0xbc45647ea894030a4e9801ec03479739fa2485f0",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "AXLUSDC",
+    "address": "0xeb466342c4d449bc9f53a865d5cb90586f405215",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "SOSO",
+    "address": "0x624e2e7fdc8903165f64891672267ab0fcb98831",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "USDE",
+    "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "MBS",
+    "address": "0x8fbd0648971d56f1f2c35fa075ff5bc75fb0e39d",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "AERO",
+    "address": "0x940181a94a35a4569e4529a3cdfb74e38fd98631",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "WETH",
+    "address": "0x4200000000000000000000000000000000000006",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "USDT",
+    "address": "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "WEETH",
+    "address": "0x04c0599ae5a44757c0af6f9ec3b93da8976c150a",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "SUSDS",
+    "address": "0x5875eee11cf8398102fdad704c9e96607675467a",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "DEGEN",
+    "address": "0x4ed4e862860bed51a9570b96d89af5e1b0efefed",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "COINYE",
+    "address": "0x0028e1e60167b48a938b785aa5292917e7eaca8b",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "USDBC",
+    "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "CBETH",
+    "address": "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "PARTI",
+    "address": "0x59264f02d301281f3393e1385c0aefd446eb0f00",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "ZRO",
+    "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "GHO",
+    "address": "0x6bb7a212910682dcfdbd5bcbb3e28fb4e8da10ee",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "WRSETH",
+    "address": "0xedfa23602d0ec14714057867a78d01e94176bea0",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "MOG",
+    "address": "0x2Da56AcB9Ea78330f947bD57C54119Debda7AF71",
+    "chainIndex": "8453"
+  },
+  {
+    "symbol": "DAI",
+    "address": "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
+    "chainIndex": "8453"
+  }
+]

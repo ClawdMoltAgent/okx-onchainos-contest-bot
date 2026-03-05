@@ -1,7 +1,7 @@
 import json
 
 from okx_contest_bot.analytics import summarize_trades
-from okx_contest_bot.config import load_config
+from okx_contest_bot.config import load_config, _parse_candidates
 from okx_contest_bot.strategy import MovingAverageStrategy
 from okx_contest_bot.risk import RiskManager, RiskState
 
@@ -27,6 +27,12 @@ def test_risk_open_limit():
     ok, reason = r.can_open(state, 20)
     assert not ok
     assert reason == "position-limit-hit"
+
+
+def test_parse_candidates():
+    c = _parse_candidates("WETH:0x1,cbBTC:0x2")
+    assert len(c) == 2
+    assert c[0]["symbol"] == "WETH"
 
 
 def test_analytics_summary(tmp_path):
