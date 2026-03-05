@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: okx-onchainos-contest-bot
+Version: 0.1.0
+Summary: Base-only trading bot for OKX OnchainOS AI competition
+Requires-Python: >=3.11
+Requires-Dist: requests>=2.32.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: web3>=7.0.0
+Requires-Dist: eth-account>=0.13.0

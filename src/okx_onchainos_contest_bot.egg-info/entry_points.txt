@@ -1,0 +1,2 @@
+[console_scripts]
+okx-contest-bot = okx_contest_bot.main:main

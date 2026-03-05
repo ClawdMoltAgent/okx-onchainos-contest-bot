@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+logs/
+*.log
+.DS_Store
+.pytest_cache/
+.coverage
+
+data/*.jsonl
+data/runtime_state.json
+data/report.json
