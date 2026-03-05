@@ -58,7 +58,7 @@ class TradingEngine:
     def _append_trade_event(self, event: dict) -> None:
         self.trades_path.open("a", encoding="utf-8").write(json.dumps(event, ensure_ascii=False) + "\n")
 
-    def _submit_evm_tx(self, tx: dict, nonce: int | None = None) -> str:
+    def _submit_evm_tx(self, tx: dict, nonce: int | None = None, gas_multiplier: float = 1.35) -> str:
         if not self.cfg.evm_private_key or not self.cfg.evm_address:
             raise RuntimeError("EVM_PRIVATE_KEY / EVM_ADDRESS required for live mode")
 
@@ -67,7 +67,8 @@ class TradingEngine:
         if nonce is None:
             nonce = self.w3.eth.get_transaction_count(from_addr, "pending")
 
-        gas = int(tx.get("gas") or tx.get("gasLimit") or 250000)
+        gas_raw = int(tx.get("gas") or tx.get("gasLimit") or 250000)
+        gas = int(gas_raw * gas_multiplier)
         value = int(tx.get("value", "0"))
 
         tx_obj = {
@@ -86,6 +87,17 @@ class TradingEngine:
             tx_obj["gasPrice"] = int(tx["gasPrice"])
         else:
             tx_obj["gasPrice"] = int(self.w3.eth.gas_price)
+
+        # preflight simulation: fail fast on obvious revert paths
+        self.w3.eth.call(
+            {
+                "from": from_addr,
+                "to": tx_obj["to"],
+                "data": tx_obj["data"],
+                "value": tx_obj["value"],
+            },
+            "pending",
+        )
 
         signed = self.w3.eth.account.sign_transaction(tx_obj, private_key=self.cfg.evm_private_key)
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -117,14 +129,23 @@ class TradingEngine:
             approve_tx = self.client.build_approve_transaction(token_contract_address=self.cfg.quote_token_address, approve_amount_wei=amount_wei)
             approve_tx_hash = self._submit_evm_tx(approve_tx, nonce=base_nonce)
             self._wait_success(approve_tx_hash)
-            swap_tx = self.client.build_swap_transaction(
-                from_token_address=self.cfg.quote_token_address,
-                to_token_address=token_address,
-                amount_wei=amount_wei,
-                slippage_bps=self.cfg.slippage_bps,
-            )
-            tx_hash = self._submit_evm_tx(swap_tx, nonce=base_nonce + 1)
-            self._wait_success(tx_hash)
+            swap_errors: list[str] = []
+            for i, sl_bps in enumerate([self.cfg.slippage_bps, max(self.cfg.slippage_bps * 2, 100)]):
+                try:
+                    swap_tx = self.client.build_swap_transaction(
+                        from_token_address=self.cfg.quote_token_address,
+                        to_token_address=token_address,
+                        amount_wei=amount_wei,
+                        slippage_bps=sl_bps,
+                    )
+                    tx_hash = self._submit_evm_tx(swap_tx, nonce=base_nonce + 1 + i, gas_multiplier=1.5)
+                    self._wait_success(tx_hash)
+                    break
+                except Exception as e:
+                    swap_errors.append(str(e))
+                    tx_hash = ""
+            if not tx_hash:
+                raise RuntimeError(f"swap failed after retries: {swap_errors}")
 
         self.risk_state.position_usd += self.cfg.per_trade_usd
         self._entry_price = price
@@ -175,14 +196,23 @@ class TradingEngine:
             approve_tx = self.client.build_approve_transaction(token_contract_address=token_address, approve_amount_wei=amount_wei)
             approve_tx_hash = self._submit_evm_tx(approve_tx, nonce=base_nonce)
             self._wait_success(approve_tx_hash)
-            swap_tx = self.client.build_swap_transaction(
-                from_token_address=token_address,
-                to_token_address=self.cfg.quote_token_address,
-                amount_wei=amount_wei,
-                slippage_bps=self.cfg.slippage_bps,
-            )
-            tx_hash = self._submit_evm_tx(swap_tx, nonce=base_nonce + 1)
-            self._wait_success(tx_hash)
+            swap_errors: list[str] = []
+            for i, sl_bps in enumerate([self.cfg.slippage_bps, max(self.cfg.slippage_bps * 2, 100)]):
+                try:
+                    swap_tx = self.client.build_swap_transaction(
+                        from_token_address=token_address,
+                        to_token_address=self.cfg.quote_token_address,
+                        amount_wei=amount_wei,
+                        slippage_bps=sl_bps,
+                    )
+                    tx_hash = self._submit_evm_tx(swap_tx, nonce=base_nonce + 1 + i, gas_multiplier=1.5)
+                    self._wait_success(tx_hash)
+                    break
+                except Exception as e:
+                    swap_errors.append(str(e))
+                    tx_hash = ""
+            if not tx_hash:
+                raise RuntimeError(f"swap failed after retries: {swap_errors}")
 
         self._append_trade_event(
             {

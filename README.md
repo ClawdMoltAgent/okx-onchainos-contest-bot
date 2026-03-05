@@ -79,3 +79,4 @@ okx-contest-bot --report --report-json ./data/report.json
 ## 说明
 - live 模式当前实现为“构建交易并提交 swap 请求”流程；若你的 API 版本字段不同，按 OKX 最新文档调整 `okx_client.py` 对应 path/字段即可。
 - 建议先用 `MAX_CYCLES=20` 做小样本验证，再改成 0 持续运行。
+- 执行层已加入 preflight 模拟、gas buffer、以及失败后的高滑点重试，降低链上回滚概率。
