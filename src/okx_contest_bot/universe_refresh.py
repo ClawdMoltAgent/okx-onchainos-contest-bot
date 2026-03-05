@@ -10,6 +10,19 @@ from .okx_client import OkxDexClient, OkxApiError
 USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 WETH = "0x4200000000000000000000000000000000000006"
 
+STABLE_SYMBOL_HINTS = {
+    "USDC",
+    "USDT",
+    "DAI",
+    "USDE",
+    "USDBC",
+    "FDUSD",
+    "TUSD",
+    "SUSDS",
+    "AXLUSDC",
+    "GHO",
+}
+
 
 def refresh_base_universe(cfg: Config, out_path: str = "./data/base_token_universe.json", max_tokens: int = 20) -> dict:
     client = OkxDexClient(cfg)
@@ -22,6 +35,8 @@ def refresh_base_universe(cfg: Config, out_path: str = "./data/base_token_univer
         if not symbol or not addr:
             continue
         if addr.lower() in {USDC.lower()}:
+            continue
+        if symbol in STABLE_SYMBOL_HINTS or "USD" in symbol:
             continue
 
         # quality gate: must be quoteable from USDC and from WETH on Base
